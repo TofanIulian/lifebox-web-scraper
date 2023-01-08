@@ -1,0 +1,19 @@
+{
+  "name": "lifebox-web-scraper",
+  "version": "1.0.0",
+  "description": "Lifebox Web Scraper",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TofanIulian/lifebox-web-scraper.git"
+  },
+  "author": "Iulian Tofan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TofanIulian/lifebox-web-scraper/issues"
+  },
+  "homepage": "https://github.com/TofanIulian/lifebox-web-scraper#readme"
+}
