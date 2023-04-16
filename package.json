@@ -15,5 +15,10 @@
   "bugs": {
     "url": "https://github.com/TofanIulian/lifebox-web-scraper/issues"
   },
-  "homepage": "https://github.com/TofanIulian/lifebox-web-scraper#readme"
+  "homepage": "https://github.com/TofanIulian/lifebox-web-scraper#readme",
+  "dependencies": {
+    "firebase": "^9.15.0",
+    "puppeteer": "^19.5.1"
+  },
+  "type": "module"
 }
