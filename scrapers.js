@@ -1,91 +1,6 @@
-// const puppeteer = require('puppeteer');
+'use strict';
+
 import * as puppeteer from 'puppeteer';
-// import { launch } from 'puppeteer';
-
-// Import the functions you need from the SDKs you need
-import { initializeApp } from 'firebase/app';
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  addDoc,
-  writeBatch,
-  doc,
-} from 'firebase/firestore/lite';
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: 'AIzaSyDr4vNW8rR9unczwADxlkXUN37MHbi28y4',
-  authDomain: 'tofi-tools.firebaseapp.com',
-  projectId: 'tofi-tools',
-  storageBucket: 'tofi-tools.appspot.com',
-  messagingSenderId: '1000692286817',
-  appId: '1:1000692286817:web:0ab6b513b409955f87b120',
-  measurementId: 'G-XHFCKR8VW2',
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Get a list of cities from your database
-async function saveData(db, dailyData, mealsData) {
-  const citiesCol = collection(db, 'finance-data');
-  const citySnapshot = await getDocs(citiesCol);
-  // const cityList = citySnapshot.map((doc) => doc.data());
-
-  citySnapshot.forEach((doc) => {
-    console.log(doc.data());
-  });
-
-  // console.warn({
-  //   citiesCol: citiesCol,
-  //   cityList: cityList,
-  //   citySnapshot: citySnapshot,
-  // });
-
-  // const collection = firebase.firestore().collection('restaurants');
-  // return collection.add(data);
-
-  /**
-   * Bulk Upload
-   */
-  const batch = writeBatch(db);
-
-  const dailylifeboxCollection = collection(
-    db,
-    'lifebox',
-    'tHTOmzHDq5Sz4Yqwxe0pcOVBBiV2',
-    'daily'
-  );
-
-  const meallifeboxCollection = collection(
-    db,
-    'lifebox',
-    'tHTOmzHDq5Sz4Yqwxe0pcOVBBiV2',
-    'meal'
-  );
-
-  dailyData.forEach((entry) => {
-    var docRef = doc(dailylifeboxCollection); //automatically generate unique id
-    batch.set(docRef, entry);
-  });
-
-  mealsData.forEach((entry) => {
-    var docRef = doc(meallifeboxCollection); //automatically generate unique id
-    batch.set(docRef, entry);
-  });
-
-  batch.commit();
-}
-
-const querySnapshot = await getDocs(collection(db, 'users'));
-querySnapshot.forEach((doc) => {
-  console.log(`${doc.id} => ${doc.data()}`);
-});
 
 function getMonday(d) {
   d = new Date(d);
@@ -94,10 +9,28 @@ function getMonday(d) {
   return new Date(d.setDate(diff));
 }
 
+function getElementByXpath(path) {
+  return document.evaluate(
+    path,
+    document,
+    null,
+    XPathResult.FIRST_ORDERED_NODE_TYPE,
+    null
+  ).singleNodeValue;
+}
+
 async function scrape(url) {
-  const broweser = await puppeteer.launch();
+  const broweser = await puppeteer.launch({
+    headless: false,
+    slowMo: 50, // slow down by 250ms
+  });
   const page = await broweser.newPage();
-  await page.goto(url);
+  await page.goto(url, {
+    waitUntil: 'networkidle0',
+  });
+
+  const username = 'tofan.iulian';
+  const password = '$Tnumber1';
 
   // inspect, right click element, copy XPath
   // const xPath =
@@ -121,69 +54,171 @@ async function scrape(url) {
 
   // console.log(rawText);
 
-  const weeklyButtons = await page.$$('.weekly-buttons .button-week');
+  const esentialCookies =
+    '/html/body/div[2]/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/button[1]';
+  const [esentialCookiesButton] = await page.$x(esentialCookies);
+
+  await esentialCookiesButton.click();
+
+  // const allCookies =
+  //   '/html/body/div[2]/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/button[2]';
+  // const [allCookiesButton] = await page.$x(allCookies);
+
+  // await allCookiesButton.click();
+
+  // await page.waitForSelector('input[name=username]');
+  // await page.$eval('input[name=username]', (el) => {
+  //   el.click();
+  //   el.value = 'tofan.iulian';
+  //   el.setAttribute('value', 'tofaniulian');
+  // });
+
+  // keyboard.type('the text');
+
+  // await page.waitForSelector('input[name=password]');
+  // await page.$eval('input[name=password]', (el) => (el.value = '$Tnumber1'));
+
+  // await page.click('button[type="submit"]');
+
+  await page.waitForSelector('input[name="username"]');
+  await page.type('input[name="username"]', username);
+  await page.type('input[name="password"]', password);
+  await page.click('button[type="submit"]');
+
+  await page.waitForSelector(`a[href^='/${username}']`).then((el) => {
+    el.click();
+  });
+
+  await page.waitForSelector(`a[href^='/${username}/followers']`).then((el) => {
+    el.click();
+
+    el.evaluate((htmlElement) => {
+      console.log(htmlElement);
+    });
+
+    // console.log(el.children[0].children[0]);
+  });
+
+  await page.waitForXPath(
+    '/html/body/div[2]/div/div/div[3]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/div/div[2]'
+  );
+
+  await page.evaluate(() => {
+    function getElementByXpath(path) {
+      return document.evaluate(
+        path,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+      ).singleNodeValue;
+    }
+
+    const listContainer = getElementByXpath(
+      '/html/body/div[2]/div/div/div[3]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/div/div[2]'
+    );
+
+    console.log(listContainer);
+    listContainer.scrollTop = 1000;
+
+    const scrollIntervalId = setInterval(() => {
+      listContainer.scrollTop = listContainer.scrollTop + 1000;
+
+      // look into scrollIntoView(this)
+      if (listContainer.children[0].children[0].children.length === 169) {
+        clearInterval(scrollIntervalId);
+      }
+    }, 2000);
+
+    // const lastLink = document.querySelectorAll('h3 > a')[2];
+    // const topPos = lastLink.offsetTop;
+
+    // const parentDiv = document.querySelector('div[class*="eo2As"]');
+    // parentDiv.scrollTop = topPos;
+  });
+
+  // await page.click(`a[href^='/${username}']`);
+  // const text = await page.evaluate(() => {
+  //   const anchor = document.querySelector(
+  //     '._aacl ._aaco ._aacu ._aacx ._aad6 ._aade'
+  //   );
+  //   return anchor.textContent;
+  // });
+  // console.log(text);
+
+  // const username = await page.$('[name="username"]');
+  // console.log(
+  //   'username value: ',
+  //   await (await username.getProperty('value')).jsonValue()
+  // );
+  // console.log(username);
+
+  // const password = await page.$('[name="password"]');
+  // console.log(
+  //   'password value: ',
+  //   await (await password.getProperty('value')).jsonValue()
+  // );
 
   // Doesn't work well for some reason
   // for (let button of weeklyButtons) {
   // await button.click();
   // ...
 
-  const scrapedDays = [];
-  const scrapedMeals = [];
-  const dateCounter = getMonday(new Date());
+  // const scrapedDays = [];
+  // const scrapedMeals = [];
+  // const dateCounter = getMonday(new Date());
   // For each week
-  for (let i = 1; i <= weeklyButtons.length; i++) {
-    // Navigate to the week page.
-    //
-    // Clicking hte button doesn't work well for some reason
-    // for (let button of weeklyButtons) {
-    // await button.click();
-    // ...
-    await page.goto(`${url}/week-${i}`);
+  // for (let i = 1; i <= weeklyButtons.length; i++) {
+  //   // Navigate to the week page.
+  //   //
+  //   // Clicking hte button doesn't work well for some reason
+  //   // for (let button of weeklyButtons) {
+  //   // await button.click();
+  //   // ...
+  //   await page.goto(`${url}/week-${i}`);
 
-    let days = await page.$$(`.slider-menu-for-day .slick-track .slick-slide`);
+  //   let days = await page.$$(`.slider-menu-for-day .slick-track .slick-slide`);
 
-    // For each day
-    for (let day of days) {
-      const meals = await day.$$('.slick-slide > .row');
+  //   // For each day
+  //   for (let day of days) {
+  //     const meals = await day.$$('.slick-slide > .row');
 
-      const scrapedDailyMeals = [];
-      // For each day
-      for (let meal of meals) {
-        const img = await meal.$('img');
-        const title = await meal.$('.wrapper-ingredients h4');
+  //     const scrapedDailyMeals = [];
+  //     // For each day
+  //     for (let meal of meals) {
+  //       const img = await meal.$('img');
+  //       const title = await meal.$('.wrapper-ingredients h4');
 
-        let srcText = 'no image';
-        if (img) {
-          const src = await img.getProperty('src');
-          srcText = await src.jsonValue();
-        }
+  //       let srcText = 'no image';
+  //       if (img) {
+  //         const src = await img.getProperty('src');
+  //         srcText = await src.jsonValue();
+  //       }
 
-        const titleText = await title.getProperty('textContent');
-        const titleRawText = await titleText.jsonValue();
+  //       const titleText = await title.getProperty('textContent');
+  //       const titleRawText = await titleText.jsonValue();
 
-        scrapedMeals.push({
-          title: titleRawText,
-          imageUrl: srcText,
-        });
+  //       scrapedMeals.push({
+  //         title: titleRawText,
+  //         imageUrl: srcText,
+  //       });
 
-        scrapedDailyMeals.push({
-          title: titleRawText,
-          imageUrl: srcText,
-        });
-      }
+  //       scrapedDailyMeals.push({
+  //         title: titleRawText,
+  //         imageUrl: srcText,
+  //       });
+  //     }
 
-      console.log({ scrapedDailyMeals });
-      scrapedDays.push({
-        date: new Date(dateCounter),
-        meals: scrapedDailyMeals,
-      });
-      dateCounter.setDate(dateCounter.getDate() + 1);
-    }
-  }
+  //     console.log({ scrapedDailyMeals });
+  //     scrapedDays.push({
+  //       date: new Date(dateCounter),
+  //       meals: scrapedDailyMeals,
+  //     });
+  //     dateCounter.setDate(dateCounter.getDate() + 1);
+  //   }
+  // }
 
-  console.log(scrapedDays);
-  saveData(db, scrapedDays, scrapedMeals);
+  // console.log(scrapedDays);
 
   //   const sliderElemText = await sliderElem.getProperty('textContent');
   //   const sliderElemRawText = await sliderElemText.jsonValue();
@@ -191,7 +226,18 @@ async function scrape(url) {
   //   console.log({ sliderElemRawText });
 
   // Make sure to close the browser at the end in order for the process to end
-  broweser.close();
+  // broweser.close();
 }
 
-scrape('https://www.lifebox.ro/sportbox-4');
+scrape('https://www.instagram.com/');
+
+// document
+//   .querySelector('input[name=username]')
+//   .setAttribute('value', 'tofan.iulian');
+// document.querySelector('input[name=username]').value = 'tofan.iulian';
+// document
+//   .querySelector('input[name=password]')
+//   .setAttribute('value', '$Tnumber1');
+// document.querySelector('input[name=password]').value = '$Tnumber1';
+// document.querySelector('button[type="submit"]').disabled = false;
+// document.querySelector('button[type="submit"]').click();

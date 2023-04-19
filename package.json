@@ -4,6 +4,7 @@
   "description": "Lifebox Web Scraper",
   "main": "index.js",
   "scripts": {
+    "scrape": "node scrapers.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -17,7 +18,6 @@
   },
   "homepage": "https://github.com/TofanIulian/lifebox-web-scraper#readme",
   "dependencies": {
-    "firebase": "^9.15.0",
     "puppeteer": "^19.5.1"
   },
   "type": "module"
