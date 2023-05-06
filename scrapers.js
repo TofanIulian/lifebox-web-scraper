@@ -2,35 +2,28 @@
 
 import * as puppeteer from 'puppeteer';
 
+import {
+  SquareState,
+  getNeighboursCoordinates,
+  getSquareNumberOfBombs,
+} from './minesweeper-utils.js';
+
+import { NUMBER_OF_COLUMNS, NUMBER_OF_ROWS } from './minesweeper-config.js';
+
+import { wait } from './utils.js';
+
 let page;
 
 const logClicks = true;
 const logNeighbours = true;
+const debug = false;
 
-const NUMBER_OF_COLUMNS = 30;
-const NUMBER_OF_ROWS = 16;
 const BOMBS_SELECTORS = ['#mines_hundreds', '#mines_tens', '#mines_ones'];
 const SECONDS_SELECTORS = [
   '#seconds_hundreds',
   '#seconds_tens',
   '#seconds_ones',
 ];
-
-const SquareState = Object.freeze({
-  BombRevealed: 'bombrevealed',
-  BombDeath: 'bombdeath',
-  Flagged: 'bombflagged',
-  Blank: 'blank',
-  Zero: 'open0',
-  One: 'open1',
-  Two: 'open2',
-  Three: 'open3',
-  Four: 'open4',
-  Five: 'open5',
-  Six: 'open6',
-  Seven: 'open7',
-  Eight: 'open8',
-});
 
 let map;
 let squaresMap;
@@ -48,10 +41,6 @@ let EightsSquaresMap;
 let remainingBombs;
 
 let mapHasChanged;
-
-function wait(time) {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
 
 function getElementByXpath(path) {
   return document.evaluate(
@@ -166,6 +155,27 @@ async function initMap() {
     }
 
     map[i] = row;
+  }
+
+  // const end = new Date();
+  // console.log(end.getTime() - start.getTime());
+
+  // console.log(map);
+  return map;
+}
+
+async function updateMap() {
+  // const start = new Date();
+
+  for (let i = 1; i <= NUMBER_OF_ROWS; i++) {
+    for (let j = 1; j <= NUMBER_OF_COLUMNS; j++) {
+      const previousState = map[i][j].state;
+      if (map[i][j].state === SquareState.Blank) await updateState([i, j]);
+
+      if (map[i][j].state !== previousState) {
+        squaresToLookInto.unshift(map[i][j]);
+      }
+    }
   }
 
   // const end = new Date();
@@ -415,86 +425,20 @@ function getNeighbours([i, j]) {
   return [blankNeighbours, flaggedNeighbours];
 }
 
-function getNeighboursCoordinates([i, j]) {
-  const coordinates = [];
-
-  if (i > 1) {
-    if (j > 1) {
-      // left-top
-      coordinates.push([i - 1, j - 1]);
-    }
-
-    // top
-    coordinates.push([i - 1, j]);
-
-    if (j < NUMBER_OF_COLUMNS) {
-      // right-top
-      coordinates.push([i - 1, j + 1]);
-    }
-  }
-
-  if (j > 1) {
-    // left
-    coordinates.push([i, j - 1]);
-  }
-
-  if (j < NUMBER_OF_COLUMNS) {
-    // right
-    coordinates.push([i, j + 1]);
-  }
-
-  if (i < NUMBER_OF_ROWS) {
-    if (j > 1) {
-      // left bottom
-      coordinates.push([i + 1, j - 1]);
-    }
-
-    // bottom
-    coordinates.push([i + 1, j]);
-
-    if (j < NUMBER_OF_COLUMNS) {
-      // right-bottom
-      coordinates.push([i + 1, j + 1]);
-    }
-  }
-
-  return coordinates;
-}
-
-function getSquareNumberOfBombs([i, j]) {
-  switch (map[i][j].state) {
-    case SquareState.One:
-      return 1;
-    case SquareState.Two:
-      return 2;
-    case SquareState.Three:
-      return 3;
-    case SquareState.Four:
-      return 4;
-    case SquareState.Five:
-      return 5;
-    case SquareState.Six:
-      return 6;
-    case SquareState.Seven:
-      return 7;
-    case SquareState.Eight:
-      return 8;
-  }
-}
-
 async function markAsResolved([i, j]) {
   console.log('Resolved: ', i, j);
 
   map[i][j].resolved = true;
 
-  await page.evaluate(
-    ([i, j]) => {
-      let dom = document.getElementById(`${i}_${j}`);
+  if (debug)
+    await page.evaluate(
+      ([i, j]) => {
+        let dom = document.getElementById(`${i}_${j}`);
 
-      dom.innerText = 'R';
-    },
-    [i, j]
-  );
+        dom.innerText = 'R';
+      },
+      [i, j]
+    );
   mapHasChanged = true;
 }
 
@@ -502,33 +446,35 @@ async function tryToResolveSquare([i, j]) {
   // console.log('Resolving: ', i, j);
   const neighboursCoordinates = getNeighboursCoordinates([i, j]);
 
-  const numberOfBombs = getSquareNumberOfBombs([i, j]);
+  const numberOfBombs = getSquareNumberOfBombs(map[i][j].state);
 
   const blankNeighbours = [];
   const flaggedNeighbours = [];
 
   for (let [i, j] of neighboursCoordinates) {
-    await page.evaluate(
-      (coordinates) => {
-        let dom = document.getElementById(
-          `${coordinates[0]}_${coordinates[1]}`
-        );
-        dom.classList.add('purple');
-      },
-      [i, j]
-    );
-    await wait(25);
+    if (debug) {
+      await page.evaluate(
+        (coordinates) => {
+          let dom = document.getElementById(
+            `${coordinates[0]}_${coordinates[1]}`
+          );
+          dom.classList.add('purple');
+        },
+        [i, j]
+      );
+      await wait(25);
 
-    await page.evaluate(
-      (coordinates) => {
-        let dom = document.getElementById(
-          `${coordinates[0]}_${coordinates[1]}`
-        );
-        dom.classList.remove('purple');
-      },
-      [i, j]
-    );
-    await wait(5);
+      await page.evaluate(
+        (coordinates) => {
+          let dom = document.getElementById(
+            `${coordinates[0]}_${coordinates[1]}`
+          );
+          dom.classList.remove('purple');
+        },
+        [i, j]
+      );
+      await wait(5);
+    }
 
     if (map[i][j].state === SquareState.Blank) {
       blankNeighbours.push(map[i][j]);
@@ -640,28 +586,29 @@ async function scrape(url) {
 
   squaresToLookInto.push(map[i][j]);
 
-  let reps = 50;
+  let reps = 200;
   while (squaresToLookInto.length && reps) {
     mapHasChanged = false;
 
     console.log('RUN', reps, '    ', squaresToLookInto.length);
     for (let i = 0; i < squaresToLookInto.length; i++) {
-      await page.evaluate((coordinates) => {
-        let dom = document.getElementById(
-          `${coordinates[0]}_${coordinates[1]}`
-        );
-        dom.classList.add('blue');
-      }, squaresToLookInto[i].coordinates);
-      await wait(50);
+      if (debug) {
+        await page.evaluate((coordinates) => {
+          let dom = document.getElementById(
+            `${coordinates[0]}_${coordinates[1]}`
+          );
+          dom.classList.add('blue');
+        }, squaresToLookInto[i].coordinates);
+        await wait(50);
 
-      await page.evaluate((coordinates) => {
-        let dom = document.getElementById(
-          `${coordinates[0]}_${coordinates[1]}`
-        );
-        dom.classList.remove('blue');
-      }, squaresToLookInto[i].coordinates);
-      await wait(10);
-
+        await page.evaluate((coordinates) => {
+          let dom = document.getElementById(
+            `${coordinates[0]}_${coordinates[1]}`
+          );
+          dom.classList.remove('blue');
+        }, squaresToLookInto[i].coordinates);
+        await wait(10);
+      }
       if (squaresToLookInto[i].resolved === true) {
         squaresToLookInto.splice(i, 1);
         i--;
@@ -674,13 +621,14 @@ async function scrape(url) {
 
           await markAsResolved(squaresToLookInto[i].coordinates);
 
-          await page.evaluate((coordinates) => {
-            let dom = document.getElementById(
-              `${coordinates[0]}_${coordinates[1]}`
-            );
-            dom.classList.add('green');
-          }, squaresToLookInto[i].coordinates);
-
+          if (debug) {
+            await page.evaluate((coordinates) => {
+              let dom = document.getElementById(
+                `${coordinates[0]}_${coordinates[1]}`
+              );
+              dom.classList.add('green');
+            }, squaresToLookInto[i].coordinates);
+          }
           await lookIntoNeightbours(squaresToLookInto[i].coordinates);
           break;
         }
@@ -729,12 +677,17 @@ async function scrape(url) {
     }
 
     if (!mapHasChanged) {
-      let [i, j] = await clickRandomBlankSquare();
+      // let [i, j] = await clickRandomBlankSquare();
 
-      await updateState([i, j]);
+      // await updateState([i, j]);
 
-      squaresToLookInto.unshift(map[i][j]);
+      // squaresToLookInto.unshift(map[i][j]);
+
+      await wait(500);
+      await updateMap;
     }
+
+    await updateMap();
     reps--;
   }
 
