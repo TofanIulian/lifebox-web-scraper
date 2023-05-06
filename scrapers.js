@@ -32,9 +32,10 @@ const SquareState = Object.freeze({
   Eight: 'open8',
 });
 
-let mapState;
+let map;
 let squaresMap;
-let blankSquaresMap;
+let blankMap;
+let squaresToLookInto;
 let ZerosSquaresMap;
 let OnesSquaresMap;
 let TwoSquaresMap;
@@ -47,6 +48,10 @@ let EightsSquaresMap;
 let remainingBombs;
 
 let mapHasChanged;
+
+function wait(time) {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 function getElementByXpath(path) {
   return document.evaluate(
@@ -132,117 +137,41 @@ async function getNumberOfBombs() {
  *
  * @param {*} page
  */
-async function hydrateMapState() {
+async function initMap() {
   // const start = new Date();
 
-  blankSquaresMap = {};
-  ZerosSquaresMap = {};
-  OnesSquaresMap = {};
-  TwoSquaresMap = {};
-  ThreesSquaresMap = {};
-  FoursSquaresMap = {};
-  FivesSquaresMap = {};
-  SixesSquaresMap = {};
-  SevensSquaresMap = {};
-  EightsSquaresMap = {};
+  map = [];
+  squaresToLookInto = [];
 
-  const map = [];
   for (let i = 1; i <= NUMBER_OF_ROWS; i++) {
     const row = [];
 
     for (let j = 1; j <= NUMBER_OF_COLUMNS; j++) {
       // Note: you can't use an ID starting with an integer in CSS selectors
       // https://stackoverflow.com/questions/37270787/uncaught-syntaxerror-failed-to-execute-queryselector-on-document
-      const square = await getElementClassName(`[id='${i}_${j}']`);
 
-      const squareClass = square.split('square ')[1];
-      squaresMap[`${i}_${j}`] = squareClass;
+      const elemHandle = await page.$(`[id='${i}_${j}']`);
+      // const square = await getElementClassName(`[id='${i}_${j}']`);
 
-      switch (squareClass) {
-        case SquareState.Blank: {
-          blankSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.One: {
-          OnesSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.Two: {
-          TwoSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.Three: {
-          ThreesSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.Four: {
-          FoursSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.Five: {
-          FivesSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.Six: {
-          SixesSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.Seven: {
-          SevensSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-        case SquareState.Eight: {
-          EightsSquaresMap[`${i}_${j}`] = {
-            key: `${i}_${j}`,
-            i,
-            j,
-          };
-          break;
-        }
-      }
-      row.push(squareClass);
+      // const squareClass = square.split('square ')[1];
+      // squaresMap[`${i}_${j}`] = squareClass;
+
+      row[j] = {
+        coordinates: [i, j],
+        elemHandle: elemHandle,
+        state: SquareState.Blank,
+        checked: false,
+        resolved: false,
+      };
     }
 
-    map.push(row);
+    map[i] = row;
   }
 
   // const end = new Date();
   // console.log(end.getTime() - start.getTime());
 
   // console.log(map);
-  mapState = map;
   return map;
 }
 
@@ -259,7 +188,7 @@ function getRandomSquareCoordinates() {
 
 // TODO: We could take a blanck square in a smarter way.Example: 1 surounded by 8 blanks
 function getBlankSquare() {
-  const blankSquaresArray = Object.keys(blankSquaresMap);
+  const blankSquaresArray = Object.keys(blankMap);
 
   // const halfLength = Math.floor(blankSquaresArray.length / 2);
   // return blankSquaresArray[halfLength].split('_');
@@ -286,12 +215,13 @@ async function clickSquare(
   await page.$(`[id='${i}_${j}']`).then((el) => el.click(clickOptions));
 
   if (hydrate) {
-    await hydrateMapState();
+    await hydratemap();
   }
 }
 
 async function flagSquare(i, j) {
   if (logClicks) console.log('flagging:', [i, j]);
+
   await clickSquare(i, j, { button: 'right' }, true);
   mapHasChanged = true;
 }
@@ -303,17 +233,20 @@ async function clearNeighbourSquares(i, j) {
 }
 
 async function clickRandomBlankSquare() {
-  const [i, j] = getBlankSquare();
+  const i = Math.floor(Math.random() * (map.length - 1)) + 1;
+  const j = Math.floor(Math.random() * (map[i].length - 1)) + 1;
 
   if (logClicks) console.log('clicking:', [i, j]);
-  await clickSquare(i, j, { button: 'left' }, true);
-  mapHasChanged = true;
+
+  await map[i][j].elemHandle.click();
+
+  return [i, j];
 }
 
 async function init() {
-  mapState = [];
+  map = [];
   squaresMap = {};
-  blankSquaresMap = {};
+  blankMap = {};
   ZerosSquaresMap = {};
   OnesSquaresMap = {};
   TwoSquaresMap = {};
@@ -328,15 +261,15 @@ async function init() {
 
   mapHasChanged = false;
 
-  await hydrateMapState();
+  await initMap();
 }
 
-function checkNeighbour(blankNeighbours, flaggedNeighbours, i, j) {
-  if (mapState[i - 1][j - 1] === undefined) {
-    console.error('ERROR: ', i, j, mapState[i - 1][j - 1]);
+function checkNeighbour1(blankNeighbours, flaggedNeighbours, i, j) {
+  if (map[i - 1][j - 1] === undefined) {
+    console.error('ERROR: ', i, j, map[i - 1][j - 1]);
   }
 
-  switch (mapState[i - 1][j - 1]) {
+  switch (map[i - 1][j - 1]) {
     case SquareState.Blank: {
       blankNeighbours.push({ i, j });
       break;
@@ -348,7 +281,7 @@ function checkNeighbour(blankNeighbours, flaggedNeighbours, i, j) {
   }
 }
 
-function getNeighbours(i, j) {
+function getNeighbours1(i, j) {
   const blankNeighbours = [];
   const flaggedNeighbours = [];
 
@@ -412,294 +345,426 @@ async function genericHandleSquare(numberOfBombs, squaresMap) {
       // There are other black neighbours
       blankNeighbours.length > 0
     ) {
-      await clearNeighbourSquares(square.i, square.j);
-    } else if (
-      flaggedNeighbours.length < numberOfBombs && // 1 < 2
-      blankNeighbours.length === numberOfBombs - flaggedNeighbours.length // 3 === 2 - 1
-    ) {
-      for (let neighbour of blankNeighbours) {
-        await flagSquare(neighbour.i, neighbour.j);
-      }
-    }
-  }
-}
-
-async function handleOnes() {
-  const numberOfBombs = 1;
-
-  for (const [key, square] of Object.entries(OnesSquaresMap)) {
-    const [blankNeighbours, flaggedNeighbours] = getNeighbours(
-      square.i,
-      square.j
-    );
-
-    // console.log(square.i, square.j, blankNeighbours, flaggedNeighbours);
-    if (
-      // All the neighbour bombs are flagged
-      flaggedNeighbours.length === numberOfBombs &&
-      // There are other black neighbours
-      blankNeighbours.length > 0
-    ) {
-      await clearNeighbourSquares(square.i, square.j);
+      map[i][j].elemHandle.click({ button: 'middle' });
+      // await updateState()
     } else if (
       flaggedNeighbours.length < numberOfBombs &&
       blankNeighbours.length === numberOfBombs - flaggedNeighbours.length
     ) {
       for (let neighbour of blankNeighbours) {
-        await flagSquare(neighbour.i, neighbour.j);
+        neighbour.elemHandle.click({ button: 'right' });
+        await updateState(neighbour.coordinates);
       }
     }
+  }
+}
+
+async function updateState([i, j]) {
+  const state = await map[i][j].elemHandle
+    .getProperty('className')
+    .then((className) => className.jsonValue())
+    .then((className) => className.split('square ')[1]);
+
+  map[i][j].state = state;
+}
+
+function getNeighbours([i, j]) {
+  const blankNeighbours = [];
+  const flaggedNeighbours = [];
+
+  if (i > 1 && j > 1) {
+    // left-top
+    checkNeighbour([i - 1, j - 1]);
+  }
+
+  if (i > 1) {
+    // top
+    checkNeighbour(blankNeighbours, flaggedNeighbours, i - 1, j);
+
+    if (j < NUMBER_OF_COLUMNS) {
+      // right-top
+      checkNeighbour(blankNeighbours, flaggedNeighbours, i - 1, j + 1);
+    }
+  }
+
+  if (j > 1) {
+    // left
+    checkNeighbour(blankNeighbours, flaggedNeighbours, i, j - 1);
+
+    if (i < NUMBER_OF_ROWS) {
+      // left bottom
+      checkNeighbour(blankNeighbours, flaggedNeighbours, i + 1, j - 1);
+    }
+  }
+
+  if (j < NUMBER_OF_COLUMNS) {
+    // right
+    checkNeighbour(blankNeighbours, flaggedNeighbours, i, j + 1);
+  }
+
+  if (i < NUMBER_OF_ROWS) {
+    // bottom
+    checkNeighbour(blankNeighbours, flaggedNeighbours, i + 1, j);
+
+    if (j < NUMBER_OF_COLUMNS) {
+      // right-bottom
+      checkNeighbour(blankNeighbours, flaggedNeighbours, i + 1, j + 1);
+    }
+  }
+
+  return [blankNeighbours, flaggedNeighbours];
+}
+
+function getNeighboursCoordinates([i, j]) {
+  const coordinates = [];
+
+  if (i > 1) {
+    if (j > 1) {
+      // left-top
+      coordinates.push([i - 1, j - 1]);
+    }
+
+    // top
+    coordinates.push([i - 1, j]);
+
+    if (j < NUMBER_OF_COLUMNS) {
+      // right-top
+      coordinates.push([i - 1, j + 1]);
+    }
+  }
+
+  if (j > 1) {
+    // left
+    coordinates.push([i, j - 1]);
+  }
+
+  if (j < NUMBER_OF_COLUMNS) {
+    // right
+    coordinates.push([i, j + 1]);
+  }
+
+  if (i < NUMBER_OF_ROWS) {
+    if (j > 1) {
+      // left bottom
+      coordinates.push([i + 1, j - 1]);
+    }
+
+    // bottom
+    coordinates.push([i + 1, j]);
+
+    if (j < NUMBER_OF_COLUMNS) {
+      // right-bottom
+      coordinates.push([i + 1, j + 1]);
+    }
+  }
+
+  return coordinates;
+}
+
+function getSquareNumberOfBombs([i, j]) {
+  switch (map[i][j].state) {
+    case SquareState.One:
+      return 1;
+    case SquareState.Two:
+      return 2;
+    case SquareState.Three:
+      return 3;
+    case SquareState.Four:
+      return 4;
+    case SquareState.Five:
+      return 5;
+    case SquareState.Six:
+      return 6;
+    case SquareState.Seven:
+      return 7;
+    case SquareState.Eight:
+      return 8;
+  }
+}
+
+async function markAsResolved([i, j]) {
+  console.log('Resolved: ', i, j);
+
+  map[i][j].resolved = true;
+
+  await page.evaluate(
+    ([i, j]) => {
+      let dom = document.getElementById(`${i}_${j}`);
+
+      dom.innerText = 'R';
+    },
+    [i, j]
+  );
+  mapHasChanged = true;
+}
+
+async function tryToResolveSquare([i, j]) {
+  // console.log('Resolving: ', i, j);
+  const neighboursCoordinates = getNeighboursCoordinates([i, j]);
+
+  const numberOfBombs = getSquareNumberOfBombs([i, j]);
+
+  const blankNeighbours = [];
+  const flaggedNeighbours = [];
+
+  for (let [i, j] of neighboursCoordinates) {
+    await page.evaluate(
+      (coordinates) => {
+        let dom = document.getElementById(
+          `${coordinates[0]}_${coordinates[1]}`
+        );
+        dom.classList.add('purple');
+      },
+      [i, j]
+    );
+    await wait(25);
+
+    await page.evaluate(
+      (coordinates) => {
+        let dom = document.getElementById(
+          `${coordinates[0]}_${coordinates[1]}`
+        );
+        dom.classList.remove('purple');
+      },
+      [i, j]
+    );
+    await wait(5);
+
+    if (map[i][j].state === SquareState.Blank) {
+      blankNeighbours.push(map[i][j]);
+    }
+    if (map[i][j].state === SquareState.Flagged) {
+      flaggedNeighbours.push(map[i][j]);
+    }
+  }
+
+  console.log(
+    [i, j],
+    numberOfBombs,
+    flaggedNeighbours.length,
+    blankNeighbours.length
+  );
+
+  if (
+    // All the neighbour bombs are flagged
+    flaggedNeighbours.length === numberOfBombs
+  ) {
+    // There are other black neighbours
+    if (blankNeighbours.length > 0) {
+      console.log('Clearing');
+      await map[i][j].elemHandle.click({ button: 'middle' });
+      await lookIntoNeightbours([i, j]);
+    }
+
+    await markAsResolved([i, j]);
+  } else if (
+    flaggedNeighbours.length < numberOfBombs && // 1 < 2
+    blankNeighbours.length === numberOfBombs - flaggedNeighbours.length // 3 === 2 - 1
+  ) {
+    console.log('Flagging');
+    for (let neighbour of blankNeighbours) {
+      await neighbour.elemHandle.click({ button: 'right' });
+      await updateState(neighbour.coordinates);
+    }
+
+    await markAsResolved([i, j]);
+  }
+}
+
+async function checkNeighbour([i, j]) {
+  if (map[i][j].checked === true) return;
+
+  map[i][j].checked = true;
+
+  await updateState([i, j]);
+
+  console.log('Look Into: ', i, j, map[i][j].state);
+  squaresToLookInto.push(map[i][j]);
+}
+
+async function lookIntoNeightbours([i, j]) {
+  const neighboursCoordinates = getNeighboursCoordinates([i, j]);
+
+  for (let coord of neighboursCoordinates) {
+    await checkNeighbour(coord);
   }
 }
 
 async function scrape(url) {
   const broweser = await puppeteer.launch({
     headless: false,
-    // slowMo: 50, // slow down by 250ms
+    // slowMo: 10, // slow down by 250ms
   });
   page = await broweser.newPage();
   await page.goto(url, {
     waitUntil: 'networkidle0',
   });
 
+  await page.addStyleTag({
+    content: `
+      .green {
+        background: green !important
+      }
+
+      .purple{
+        background: purple !important;
+        color: white !important;
+        font-size: 18px !important;
+        line-height: 15px !important;
+      }
+
+      .square {
+        color: white !important;
+        font-size: 18px !important;
+        line-height: 15px !important;
+      }
+      
+      .blue {
+        background: blue !important
+      }
+      `,
+  });
+
   await init();
+  console.log(map.length);
 
-  await clickRandomBlankSquare();
+  // for (let i = 1; i < map.length; i++) {
+  //   for (let j = 1; j < map[i].length; j++) {
+  //     await map[i][j].elemHandle.click({ button: 'right' });
+  //   }
+  // }
 
-  let stopGame = false;
-  // while (!stopGame) {
-  while (!stopGame) {
+  let [i, j] = await clickRandomBlankSquare();
+
+  await updateState([i, j]);
+
+  squaresToLookInto.push(map[i][j]);
+
+  let reps = 50;
+  while (squaresToLookInto.length && reps) {
     mapHasChanged = false;
-    await genericHandleSquare(1, OnesSquaresMap);
-    await genericHandleSquare(2, TwoSquaresMap);
-    await genericHandleSquare(3, ThreesSquaresMap);
-    await genericHandleSquare(4, FoursSquaresMap);
-    await genericHandleSquare(5, FivesSquaresMap);
-    await genericHandleSquare(6, SixesSquaresMap);
-    await genericHandleSquare(7, SevensSquaresMap);
-    await genericHandleSquare(8, EightsSquaresMap);
 
-    await hydrateMapState();
+    console.log('RUN', reps, '    ', squaresToLookInto.length);
+    for (let i = 0; i < squaresToLookInto.length; i++) {
+      await page.evaluate((coordinates) => {
+        let dom = document.getElementById(
+          `${coordinates[0]}_${coordinates[1]}`
+        );
+        dom.classList.add('blue');
+      }, squaresToLookInto[i].coordinates);
+      await wait(50);
 
-    const death = await page.$(`.${SquareState.BombDeath}`);
-    console.log(death);
-    if (death) {
-      console.log('STOPPING GAME');
-      mapHasChanged = false;
-      stopGame = true;
-      break;
+      await page.evaluate((coordinates) => {
+        let dom = document.getElementById(
+          `${coordinates[0]}_${coordinates[1]}`
+        );
+        dom.classList.remove('blue');
+      }, squaresToLookInto[i].coordinates);
+      await wait(10);
+
+      if (squaresToLookInto[i].resolved === true) {
+        squaresToLookInto.splice(i, 1);
+        i--;
+        continue;
+      }
+
+      switch (squaresToLookInto[i].state) {
+        case SquareState.Zero: {
+          squaresToLookInto[i].checked = true;
+
+          await markAsResolved(squaresToLookInto[i].coordinates);
+
+          await page.evaluate((coordinates) => {
+            let dom = document.getElementById(
+              `${coordinates[0]}_${coordinates[1]}`
+            );
+            dom.classList.add('green');
+          }, squaresToLookInto[i].coordinates);
+
+          await lookIntoNeightbours(squaresToLookInto[i].coordinates);
+          break;
+        }
+        case SquareState.One:
+        case SquareState.Two:
+        case SquareState.Three:
+        case SquareState.Four:
+        case SquareState.Five:
+        case SquareState.Six:
+        case SquareState.Seven:
+        case SquareState.Eight: {
+          squaresToLookInto[i].checked = true;
+          // squaresToLookInto[i].elemHandle.
+
+          // await page.evaluate((coordinates) => {
+          //   let dom = document.getElementById(
+          //     `${coordinates[0]}_${coordinates[1]}`
+          //   );
+          //   dom.classList.add('blue');
+          // }, squaresToLookInto[i].coordinates);
+
+          await tryToResolveSquare(squaresToLookInto[i].coordinates);
+
+          // squaresToLookInto.splice(i, 1);
+          break;
+        }
+        default: {
+          // await page.evaluate((coordinates) => {
+          //   let dom = document.getElementById(
+          //     `${coordinates[0]}_${coordinates[1]}`
+          //   );
+          //   dom.classList.add('purple');
+
+          //   if (dom.innerText == 'e') dom.innerText = 'f';
+          //   else if (dom.innerText == 'd') dom.innerText = 'e';
+          //   else if (dom.innerText == 'c') dom.innerText = 'd';
+          //   else if (dom.innerText == 'b') dom.innerText = 'c';
+          //   else if (dom.innerText == 'a') dom.innerText = 'b';
+          //   else dom.innerText = 'a';
+          // }, squaresToLookInto[i].coordinates);
+          break;
+        }
+      }
+
+      // lookIntoSquare(square);
     }
+
+    if (!mapHasChanged) {
+      let [i, j] = await clickRandomBlankSquare();
+
+      await updateState([i, j]);
+
+      squaresToLookInto.unshift(map[i][j]);
+    }
+    reps--;
   }
 
-  console.log('Loop');
-  // await clickRandomBlankSquare();
-  // }
+  console.log(squaresToLookInto.length);
 
-  // setTimeout(async () => {
+  // await lookAtNeighbours(coordinates);
+
+  // let stopGame = false;
+  // while (!stopGame) {
+  //   mapHasChanged = false;
+  //   await genericHandleSquare(1, OnesSquaresMap);
+  //   await genericHandleSquare(2, TwoSquaresMap);
+  //   await genericHandleSquare(3, ThreesSquaresMap);
+  //   await genericHandleSquare(4, FoursSquaresMap);
+  //   await genericHandleSquare(5, FivesSquaresMap);
+  //   await genericHandleSquare(6, SixesSquaresMap);
+  //   await genericHandleSquare(7, SevensSquaresMap);
+  //   await genericHandleSquare(8, EightsSquaresMap);
+
+  //   await hydratemap();
+
   //   const death = await page.$(`.${SquareState.BombDeath}`);
   //   console.log(death);
-  // }, 5000);
-
-  // if (death) {
-  //   mapHasChanged = false;
-  //   reps = 0;
-  // }
-
-  // inspect, right click element, copy XPath
-  // const xPath =
-  //   '/html/body/div[3]/section[3]/div/div[2]/div/div/div[1]/div[1]/div[1]/div/img';
-
-  // Select by xpath
-  // const [el] = await page.$x(xPath);
-  // const src = await el.getProperty('src'); // 'textContent' = rawText
-  // const srcText = await src.jsonValue();
-
-  // console.log(srcText);
-
-  // const esentialCookies =
-  //   '/html/body/div[2]/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/button[1]';
-  // const [esentialCookiesButton] = await page.$x(esentialCookies);
-
-  // await esentialCookiesButton.click();
-
-  // const allCookies =
-  //   '/html/body/div[2]/div/div/div[2]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/button[2]';
-  // const [allCookiesButton] = await page.$x(allCookies);
-
-  // await allCookiesButton.click();
-
-  // await page.waitForSelector('input[name=username]');
-  // await page.$eval('input[name=username]', (el) => {
-  //   el.click();
-  //   el.value = 'tofan.iulian';
-  //   el.setAttribute('value', 'tofaniulian');
-  // });
-
-  // keyboard.type('the text');
-
-  // await page.waitForSelector('input[name=password]');
-  // await page.$eval('input[name=password]', (el) => (el.value = '$Tnumber1'));
-
-  // await page.click('button[type="submit"]');
-
-  // await page.waitForSelector('input[name="username"]');
-  // await page.type('input[name="username"]', username);
-  // await page.type('input[name="password"]', password);
-  // await page.click('button[type="submit"]');
-
-  // await page.waitForSelector(`a[href^='/${username}']`).then((el) => {
-  //   el.click();
-  // });
-
-  // await page.waitForSelector(`a[href^='/${username}/followers']`).then((el) => {
-  //   el.click();
-
-  //   el.evaluate((htmlElement) => {
-  //     console.log(htmlElement);
-  //   });
-
-  //   // console.log(el.children[0].children[0]);
-  // });
-
-  // await page.waitForXPath(
-  //   '/html/body/div[2]/div/div/div[3]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/div/div[2]'
-  // );
-
-  // await page.evaluate(() => {
-  //   function getElementByXpath(path) {
-  //     return document.evaluate(
-  //       path,
-  //       document,
-  //       null,
-  //       XPathResult.FIRST_ORDERED_NODE_TYPE,
-  //       null
-  //     ).singleNodeValue;
-  //   }
-
-  //   const listContainer = getElementByXpath(
-  //     '/html/body/div[2]/div/div/div[3]/div/div/div[1]/div/div[2]/div/div/div/div/div[2]/div/div/div[2]'
-  //   );
-
-  //   console.log(listContainer);
-  //   listContainer.scrollTop = 1000;
-
-  //   const scrollIntervalId = setInterval(() => {
-  //     listContainer.scrollTop = listContainer.scrollTop + 1000;
-
-  //     // look into scrollIntoView(this)
-  //     if (listContainer.children[0].children[0].children.length === 169) {
-  //       clearInterval(scrollIntervalId);
-  //     }
-  //   }, 2000);
-
-  //   // const lastLink = document.querySelectorAll('h3 > a')[2];
-  //   // const topPos = lastLink.offsetTop;
-
-  //   // const parentDiv = document.querySelector('div[class*="eo2As"]');
-  //   // parentDiv.scrollTop = topPos;
-  // });
-
-  // await page.click(`a[href^='/${username}']`);
-  // const text = await page.evaluate(() => {
-  //   const anchor = document.querySelector(
-  //     '._aacl ._aaco ._aacu ._aacx ._aad6 ._aade'
-  //   );
-  //   return anchor.textContent;
-  // });
-  // console.log(text);
-
-  // const username = await page.$('[name="username"]');
-  // console.log(
-  //   'username value: ',
-  //   await (await username.getProperty('value')).jsonValue()
-  // );
-  // console.log(username);
-
-  // const password = await page.$('[name="password"]');
-  // console.log(
-  //   'password value: ',
-  //   await (await password.getProperty('value')).jsonValue()
-  // );
-
-  // Doesn't work well for some reason
-  // for (let button of weeklyButtons) {
-  // await button.click();
-  // ...
-
-  // const scrapedDays = [];
-  // const scrapedMeals = [];
-  // const dateCounter = getMonday(new Date());
-  // For each week
-  // for (let i = 1; i <= weeklyButtons.length; i++) {
-  //   // Navigate to the week page.
-  //   //
-  //   // Clicking hte button doesn't work well for some reason
-  //   // for (let button of weeklyButtons) {
-  //   // await button.click();
-  //   // ...
-  //   await page.goto(`${url}/week-${i}`);
-
-  //   let days = await page.$$(`.slider-menu-for-day .slick-track .slick-slide`);
-
-  //   // For each day
-  //   for (let day of days) {
-  //     const meals = await day.$$('.slick-slide > .row');
-
-  //     const scrapedDailyMeals = [];
-  //     // For each day
-  //     for (let meal of meals) {
-  //       const img = await meal.$('img');
-  //       const title = await meal.$('.wrapper-ingredients h4');
-
-  //       let srcText = 'no image';
-  //       if (img) {
-  //         const src = await img.getProperty('src');
-  //         srcText = await src.jsonValue();
-  //       }
-
-  //       const titleText = await title.getProperty('textContent');
-  //       const titleRawText = await titleText.jsonValue();
-
-  //       scrapedMeals.push({
-  //         title: titleRawText,
-  //         imageUrl: srcText,
-  //       });
-
-  //       scrapedDailyMeals.push({
-  //         title: titleRawText,
-  //         imageUrl: srcText,
-  //       });
-  //     }
-
-  //     console.log({ scrapedDailyMeals });
-  //     scrapedDays.push({
-  //       date: new Date(dateCounter),
-  //       meals: scrapedDailyMeals,
-  //     });
-  //     dateCounter.setDate(dateCounter.getDate() + 1);
+  //   if (death) {
+  //     console.log('STOPPING GAME');
+  //     mapHasChanged = false;
+  //     stopGame = true;
+  //     break;
   //   }
   // }
-
-  // console.log(scrapedDays);
-
-  //   const sliderElemText = await sliderElem.getProperty('textContent');
-  //   const sliderElemRawText = await sliderElemText.jsonValue();
-
-  //   console.log({ sliderElemRawText });
-
-  // Make sure to close the browser at the end in order for the process to end
-  // broweser.close();
 }
 
 scrape('https://minesweeperonline.com/');
-
-// document
-//   .querySelector('input[name=username]')
-//   .setAttribute('value', 'tofan.iulian');
-// document.querySelector('input[name=username]').value = 'tofan.iulian';
-// document
-//   .querySelector('input[name=password]')
-//   .setAttribute('value', '$Tnumber1');
-// document.querySelector('input[name=password]').value = '$Tnumber1';
-// document.querySelector('button[type="submit"]').disabled = false;
-// document.querySelector('button[type="submit"]').click();
